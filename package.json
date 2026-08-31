@@ -1,0 +1,13 @@
+{
+  "name": "tickets",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w backend",
+    "dev:web": "npm run dev -w frontend",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  }
+}
