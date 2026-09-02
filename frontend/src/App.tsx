@@ -1,122 +1,142 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useEffect, useState } from 'react';
+import './App.css';
+
+const API_URL = import.meta.env.VITE_API_URL;
+
+type Ticket = {
+    id: number;
+    ticket_code: string;
+    created_at: string;
+    redeemed_at: string | null;
+};
 
 function App() {
-  const [count, setCount] = useState(0)
+    const [tickets, setTickets] = useState<Ticket[]>([]);
+    const [code, setCode] = useState('');
+    const [message, setMessage] = useState<string | null>(null);
 
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    async function request<T>(path: string, options?: RequestInit): Promise<T | null> {
+        setMessage(null);
+        try {
+            const res = await fetch(`${API_URL}${path}`, options);
 
-      <div className="ticks"></div>
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                setMessage(body.error ?? `Request failed (${res.status})`);
+                return null;
+            }
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+            return res.status === 204 ? ({} as T) : ((await res.json()) as T);
+        } catch (err) {
+            setMessage(err instanceof Error ? err.message : 'Request failed');
+            return null;
+        }
+    }
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+    async function loadTickets() {
+        const data = await request<Ticket[]>('/api/tickets');
+        if (data) setTickets(data);
+    }
+
+    useEffect(() => {
+        void loadTickets();
+    }, []);
+
+    async function handleCreate() {
+        const created = await request<Ticket>('/api/tickets', { method: 'POST' });
+        if (created) setMessage(`Created ticket ${created.ticket_code}`);
+        await loadTickets();
+    }
+
+    async function handleRedeem() {
+        const trimmed = code.trim();
+        if (!trimmed) return;
+
+        const ok = await request(`/api/tickets/${trimmed}/redeem`, { method: 'POST' });
+        if (ok) {
+            setMessage(`Ticket ${trimmed} redeemed`);
+            setCode('');
+        }
+        await loadTickets();
+    }
+
+    async function handleDelete(ticketCode: string) {
+        const ok = await request(`/api/tickets/${ticketCode}`, { method: 'DELETE' });
+        if (ok) setMessage(`Ticket ${ticketCode} deleted`);
+        await loadTickets();
+    }
+
+    return (
+        <main>
+            <h1>Ticket system</h1>
+
+            <section className="actions">
+                <button type="button" onClick={handleCreate}>
+                    Create ticket
+                </button>
+
+                <span className="redeem">
+                    <input
+                        value={code}
+                        onChange={(e) => setCode(e.target.value)}
+                        placeholder="Ticket code"
+                        aria-label="Ticket code"
+                    />
+                    <button type="button" onClick={handleRedeem}>
+                        Use ticket
+                    </button>
+                </span>
+
+                <button type="button" onClick={loadTickets}>
+                    Refresh
+                </button>
+            </section>
+
+            {message && <p className="message">{message}</p>}
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th />
+                    </tr>
+                </thead>
+                <tbody>
+                    {tickets.length === 0 && (
+                        <tr>
+                            <td colSpan={4} className="empty">
+                                No tickets yet.
+                            </td>
+                        </tr>
+                    )}
+                    {tickets.map((ticket) => {
+                        const used = ticket.redeemed_at !== null;
+                        return (
+                            <tr key={ticket.id}>
+                                <td className="code">{ticket.ticket_code}</td>
+                                <td className={used ? 'used' : 'unused'}>
+                                    {used ? `Used ${ticket.redeemed_at}` : 'Unused'}
+                                </td>
+                                <td>{ticket.created_at}</td>
+                                <td>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDelete(ticket.ticket_code)}
+                                        disabled={used}
+                                        title={used ? 'Used tickets cannot be deleted' : undefined}
+                                    >
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </main>
+    );
 }
 
-export default App
+export default App;

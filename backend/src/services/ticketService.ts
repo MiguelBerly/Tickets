@@ -8,7 +8,6 @@ import {
     type Ticket,
 } from '../models/Ticket.ts';
 
-
 function isUniqueConstraintError(err: unknown): err is { code: string } {
     return (
         typeof err === 'object' &&
